@@ -7,3 +7,5 @@ dev/books/
 xcuserdata/
 DerivedData/
 .swiftpm/
+ios/*.xcodeproj/
+ios/App/Info.plist
