@@ -4,7 +4,8 @@ import AppKit
 
 let size: CGFloat = 1024
 
-func render() -> NSBitmapImageRep {
+/// `fullBleed` draws the iOS variant: no rounded tile or shadow (the system masks it).
+func render(fullBleed: Bool = false) -> NSBitmapImageRep {
     let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size), pixelsHigh: Int(size),
                                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
                                colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
@@ -14,15 +15,23 @@ func render() -> NSBitmapImageRep {
 
     // the standard macOS icon tile: 824pt square on a 1024pt canvas
     let tile = CGRect(x: 100, y: 100, width: 824, height: 824)
-    let shape = CGPath(roundedRect: tile, cornerWidth: 186, cornerHeight: 186, transform: nil)
+    let radius: CGFloat = fullBleed ? 0 : 186
+    let shape = CGPath(roundedRect: tile, cornerWidth: radius, cornerHeight: radius, transform: nil)
 
-    ctx.saveGState()
-    ctx.setShadow(offset: CGSize(width: 0, height: -10), blur: 24,
-                  color: NSColor(white: 0, alpha: 0.28).cgColor)
-    ctx.addPath(shape)
-    ctx.setFillColor(NSColor(srgbRed: 0.98, green: 0.976, blue: 0.96, alpha: 1).cgColor)
-    ctx.fillPath()
-    ctx.restoreGState()
+    if fullBleed {
+        // stretch the tile over the whole canvas
+        let s = size / tile.width
+        ctx.translateBy(x: -tile.minX * s, y: -tile.minY * s)
+        ctx.scaleBy(x: s, y: s)
+    } else {
+        ctx.saveGState()
+        ctx.setShadow(offset: CGSize(width: 0, height: -10), blur: 24,
+                      color: NSColor(white: 0, alpha: 0.28).cgColor)
+        ctx.addPath(shape)
+        ctx.setFillColor(NSColor(srgbRed: 0.98, green: 0.976, blue: 0.96, alpha: 1).cgColor)
+        ctx.fillPath()
+        ctx.restoreGState()
+    }
 
     // paper
     ctx.saveGState()
@@ -95,11 +104,13 @@ func render() -> NSBitmapImageRep {
 
     ctx.restoreGState()
 
-    // hairline edge
-    ctx.addPath(shape)
-    ctx.setStrokeColor(NSColor(white: 0, alpha: 0.08).cgColor)
-    ctx.setLineWidth(2)
-    ctx.strokePath()
+    if !fullBleed {
+        // hairline edge
+        ctx.addPath(shape)
+        ctx.setStrokeColor(NSColor(white: 0, alpha: 0.08).cgColor)
+        ctx.setLineWidth(2)
+        ctx.strokePath()
+    }
 
     NSGraphicsContext.restoreGraphicsState()
     return rep
@@ -130,3 +141,18 @@ for (points, scale) in [(16, 1), (16, 2), (32, 1), (32, 2), (128, 1), (128, 2), 
 }
 run("/usr/bin/iconutil", ["-c", "icns", iconset.path, "-o", assets.appendingPathComponent("AppIcon.icns").path])
 print("wrote assets/AppIcon.icns")
+
+// iOS: one full-bleed 1024pt image, no alpha
+let appiconset = root.appendingPathComponent("ios/App/Assets.xcassets/AppIcon.appiconset")
+try fm.createDirectory(at: appiconset, withIntermediateDirectories: true)
+let ios = render(fullBleed: true)
+// re-encode without an alpha channel, which iOS icons must not have
+let opaque = CGContext(data: nil, width: Int(size), height: Int(size), bitsPerComponent: 8, bytesPerRow: 0,
+                       space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                       bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+opaque.setFillColor(NSColor.white.cgColor)
+opaque.fill(CGRect(x: 0, y: 0, width: size, height: size))
+opaque.draw(ios.cgImage!, in: CGRect(x: 0, y: 0, width: size, height: size))
+let flat = NSBitmapImageRep(cgImage: opaque.makeImage()!)
+try flat.representation(using: .png, properties: [:])!.write(to: appiconset.appendingPathComponent("icon-1024.png"))
+print("wrote ios AppIcon")

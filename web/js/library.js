@@ -54,11 +54,15 @@ const coverHTML = book => book.hasCover
 const clothHTML = (title, author) =>
     `<div class="cover cloth" style="background:${clothColor(title)}"><b>${esc(title)}</b><span>${esc(author)}</span></div>`
 
+// where the shelf was left, so coming back from a book lands in the same spot
+const remembered = { series: null, scroll: 0, filter: 'all' }
+
 export const mountLibrary = (root, { onOpen }) => {
     let books = []
-    let filter = 'all'
+    let filter = remembered.filter
     let query = ''
-    let series = null // key of the series being browsed
+    let series = remembered.series // key of the series being browsed
+    let restoreScroll = remembered.scroll
     let destroyed = false
 
     const el = h(`
@@ -207,6 +211,10 @@ export const mountLibrary = (root, { onOpen }) => {
         }
         groups = annotate()
         render()
+        if (restoreScroll) {
+            $('.lib-scroll', el).scrollTop = restoreScroll
+            restoreScroll = 0
+        }
     }
 
     // a broken or missing cover image falls back to a cloth binding
@@ -297,6 +305,7 @@ export const mountLibrary = (root, { onOpen }) => {
 
     load()
     return () => {
+        Object.assign(remembered, { series, filter, scroll: $('.lib-scroll', el).scrollTop })
         destroyed = true
         document.removeEventListener('keydown', onKey)
         off()

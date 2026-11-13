@@ -4,7 +4,7 @@ import { mountReader } from './reader.js'
 import { call, onHost, platform } from './bridge.js'
 
 const root = document.getElementById('app')
-document.documentElement.classList.add(platform)
+document.documentElement.classList.add(...platform.split(' '))
 
 let unmount = null
 

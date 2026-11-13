@@ -79,6 +79,7 @@ export const cleanTitle = title => {
         .replace(/【[^】]*】/g, '')
         .replace(/[（(\[]([^（()）\[\]]*)[)）\]]/g, (m, inner) => inner.length >= 10 || BLURB.test(inner) ? '' : m)
     let t = strip(strip(String(title ?? ''))).replace(/\s{2,}/g, ' ').trim()
+    t = t.replace(/;\s*or,?\s.+$/i, '')      // "Moby Dick; Or, The Whale"
     t = t.replace(/[\s\-—:：·,，]+$/, '')
     return t.length >= 1 ? t : String(title ?? '')
 }

@@ -188,7 +188,7 @@ input, textarea { font: inherit; color: inherit; }
     transition: box-shadow .2s, transform .2s var(--ease);
 }
 .continue-card:hover { box-shadow: 0 0 0 .5px var(--line), var(--shadow); transform: translateY(-1px); }
-.continue-card .cover { width: 76px; flex: none; }
+.continue-card .cover { width: 76px; flex: none; align-self: flex-start; }
 .continue-card .meta { min-width: 0; flex: 1; display: flex; flex-direction: column; padding: 2px 0; }
 .continue-card .t {
     font: 600 17px/1.35 var(--serif);
@@ -249,7 +249,7 @@ input, textarea { font: inherit; color: inherit; }
 .cover.cloth::before {
     content: ""; position: absolute; left: 12%; right: 12%; bottom: calc(12% + 1.7em); border-top: 1px solid rgba(255, 255, 255, .35);
 }
-.continue-card .cover.cloth { font-size: 9px; }
+.continue-card .cover.cloth { font-size: 10px; width: 76px; align-self: flex-start; padding: 10px 8px 8px; }
 .book .cover.cloth { font-size: 13px; }
 
 /* series stack */
@@ -369,6 +369,7 @@ input[type="range"]:focus-visible { outline: none; }
     transform: translateY(-100%); transition: transform .3s var(--ease);
 }
 .rd-ribbon.show { transform: none; }
+.reader.ui .rd-ribbon { transform: translateY(-100%); }
 
 .rd-loading {
     position: absolute; inset: 0; display: grid; place-items: center; z-index: 4;

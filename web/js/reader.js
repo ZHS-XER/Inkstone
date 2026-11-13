@@ -106,7 +106,7 @@ export const mountReader = (root, id, { onClose }) => {
             <button class="icon-btn" data-sel="note" title="写笔记">${icons.notes}</button>
             <button class="icon-btn" data-sel="copy" title="拷贝">${icons.copy}</button>
             <button class="icon-btn" data-sel="find" title="在全书中搜索">${icons.search}</button>
-            ${platform === 'mac' ? `<button class="icon-btn" data-sel="lookup" title="查词典">${icons.dict}</button>` : ''}
+            ${platform !== 'web' ? `<button class="icon-btn" data-sel="lookup" title="查词典">${icons.dict}</button>` : ''}
             <button class="icon-btn" data-sel="delete" title="删除">${icons.trash}</button>
             <textarea placeholder="写点什么…  ⌘↩ 保存"></textarea>
         </div>
@@ -132,29 +132,40 @@ export const mountReader = (root, id, { onClose }) => {
     }, 500)
 
     // ── chrome visibility ─────────────────────────────────────────
-    let uiPinned = false, uiTimer
-    const showUI = (on, linger = 0) => {
-        clearTimeout(uiTimer)
-        if (on && linger) uiTimer = setTimeout(() => { if (!uiPinned) showUI(false) }, linger)
-        el.classList.toggle('ui', on || uiPinned || overlayOpen())
-    }
+    // The bars stay out of the way: they appear when the pointer nears the top
+    // or bottom edge (or on a tap in the middle of the page) and slip away again.
+    let uiPinned = false, hideTimer = null
     const overlayOpen = () => el.classList.contains('drawer') || settingsPop.classList.contains('show')
+    const setUI = on => el.classList.toggle('ui', on || uiPinned || overlayOpen())
+    const cancelHide = () => { clearTimeout(hideTimer); hideTimer = null }
+    const scheduleHide = ms => {
+        if (hideTimer) return
+        hideTimer = setTimeout(() => { hideTimer = null; setUI(false) }, ms)
+    }
+    const showUI = (on, linger = 0) => {
+        cancelHide()
+        setUI(on)
+        if (on && linger) scheduleHide(linger)
+    }
     const toggleUI = () => {
         uiPinned = !el.classList.contains('ui')
         showUI(uiPinned)
     }
-    // pointer near the top or bottom edge reveals the bars
-    const pointerAt = y => {
-        if (matchMedia('(hover: none)').matches) return
-        const edge = y < 64 || y > innerHeight - 72
-        if (edge) showUI(true)
-        else if (!uiPinned && el.classList.contains('ui') && !uiTimer) showUI(true, 900)
-        if (edge) { clearTimeout(uiTimer); uiTimer = null }
+    const unpinUI = () => {
+        uiPinned = false
+        showUI(false)
     }
-    el.addEventListener('mousemove', e => pointerAt(e.clientY))
-    $('.rd-bar', el).addEventListener('mouseenter', () => { clearTimeout(uiTimer); uiTimer = null })
-    $('.rd-scrub', el).addEventListener('mouseenter', () => { clearTimeout(uiTimer); uiTimer = null })
-    document.documentElement.addEventListener('mouseleave', () => showUI(false, 0), { signal: abortSignal() })
+    const noHover = matchMedia('(hover: none)')
+    const pointerAt = y => {
+        if (noHover.matches) return
+        if (y < 64 || y > innerHeight - 72) showUI(true)
+        else if (el.classList.contains('ui') && !uiPinned) scheduleHide(900)
+    }
+    el.addEventListener('mousemove', e => {
+        if (e.target.closest('.rd-bar, .rd-scrub')) showUI(true)
+        else pointerAt(e.clientY)
+    })
+    document.documentElement.addEventListener('mouseleave', () => { if (!uiPinned) scheduleHide(400) }, { signal: abortSignal() })
 
     function abortSignal() {
         const c = new AbortController()
@@ -224,10 +235,13 @@ export const mountReader = (root, id, { onClose }) => {
         el.classList.add('drawer', 'ui')
         setTab(tab)
     }
-    const closeDrawer = () => {
+    const closeDrawer = ({ keepSearch = false } = {}) => {
         el.classList.remove('drawer')
-        showUI(false, 600)
+        scheduleHide(600)
         view?.renderer?.focusView?.()
+        // search outlines are for finding your place, not for reading through
+        if (keepSearch) searchLinger = 3
+        else { searchLinger = 0; view?.clearSearch() }
     }
     const setTab = tab => {
         for (const b of $$('.rd-drawer [data-tab]', el)) b.classList.toggle('on', b.dataset.tab === tab)
@@ -236,7 +250,7 @@ export const mountReader = (root, id, { onClose }) => {
         if (tab === 'notes') renderNotes()
         if (tab === 'search') setTimeout(() => { searchInput.focus(); searchInput.select() }, 60)
     }
-    $('.rd-scrim', el).addEventListener('click', closeDrawer)
+    $('.rd-scrim', el).addEventListener('click', () => closeDrawer())
     $('.rd-drawer-head', el).addEventListener('click', e => {
         const b = e.target.closest('[data-tab]')
         if (b) setTab(b.dataset.tab)
@@ -516,7 +530,7 @@ export const mountReader = (root, id, { onClose }) => {
     }
 
     // ── search ────────────────────────────────────────────────────
-    let searchRun = 0
+    let searchRun = 0, searchLinger = 0
     const runSearch = async query => {
         const run = ++searchRun
         query = query.trim()
@@ -566,7 +580,7 @@ export const mountReader = (root, id, { onClose }) => {
         const b = e.target.closest('[data-cfi]')
         if (!b) return
         jump(b.dataset.cfi)
-        if (innerWidth < 900) closeDrawer()
+        closeDrawer({ keepSearch: true })
     })
 
     // ── settings popover ──────────────────────────────────────────
@@ -602,7 +616,7 @@ export const mountReader = (root, id, { onClose }) => {
     const closeSettings = () => {
         if (!settingsPop.classList.contains('show')) return
         settingsPop.classList.remove('show')
-        showUI(false, 600)
+        scheduleHide(600)
     }
     const toggleSettings = () => {
         if (settingsPop.classList.contains('show')) return closeSettings()
@@ -796,8 +810,8 @@ export const mountReader = (root, id, { onClose }) => {
                 const x = e.clientX + frameOffset().left
                 const w = innerWidth
                 if (view.renderer?.scrolled) return toggleUI()
-                if (x < w * 0.28) { showUI(false); uiPinned = false; left() }
-                else if (x > w * 0.72) { showUI(false); uiPinned = false; right() }
+                if (x < w * 0.28) { unpinUI(); left() }
+                else if (x > w * 0.72) { unpinUI(); right() }
                 else toggleUI()
             })
         })
@@ -821,6 +835,7 @@ export const mountReader = (root, id, { onClose }) => {
         if (el.classList.contains('drawer')) renderTOC(false)
         if (!jumped) chip.classList.remove('show')
         jumped = false
+        if (searchLinger > 0 && detail.reason === 'page' && --searchLinger === 0) view.clearSearch()
 
         const atEnd = fraction >= 0.995 || (section && section.current >= section.total - 1 && fraction > 0.97)
         state.progress = { cfi: detail.cfi, fraction, updated: Date.now() }
@@ -949,7 +964,7 @@ export const mountReader = (root, id, { onClose }) => {
             await mountView(resume)
             if (!alive) return
             loading.classList.add('done')
-            if (matchMedia('(hover: none)').matches) showUI(true, 2200)
+            if (noHover.matches) showUI(true, 2200)
         } catch (e) {
             console.error(e)
             if (!alive) return

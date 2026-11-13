@@ -24,6 +24,13 @@ public final class Library {
         public var caches: URL        // cover thumbnails
         public var external: [URL]    // read-only shelves (Apple Books)
 
+        public init(support: URL, books: URL, caches: URL, external: [URL]) {
+            self.support = support
+            self.books = books
+            self.caches = caches
+            self.external = external
+        }
+
         public static func standard() -> Folders {
             let fm = FileManager.default
             let support = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -56,6 +63,30 @@ public final class Library {
         for dir in [folders.support, folders.books, folders.caches, stateFolder, coverFolder] {
             try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
         }
+        loadMetaCache()
+    }
+
+    // Parsed metadata is kept on disk between launches, so a cold start only
+    // has to list the folders rather than open every book.
+    private struct CachedMeta: Codable {
+        var stamp: Date
+        var meta: EPUBMetadata
+    }
+
+    private var metaCacheFile: URL { folders.caches.appendingPathComponent("metadata.json") }
+
+    private func loadMetaCache() {
+        guard let data = try? Data(contentsOf: metaCacheFile),
+              let stored = try? JSONDecoder().decode([String: CachedMeta].self, from: data) else { return }
+        metaCache = stored.mapValues { ($0.stamp, $0.meta) }
+    }
+
+    private func saveMetaCache() {
+        lock.lock()
+        let snapshot = metaCache.mapValues { CachedMeta(stamp: $0.stamp, meta: $0.meta) }
+        lock.unlock()
+        guard let data = try? JSONEncoder().encode(snapshot) else { return }
+        try? data.write(to: metaCacheFile, options: .atomic)
     }
 
     private var stateFolder: URL { folders.support.appendingPathComponent("state", isDirectory: true) }
@@ -74,6 +105,8 @@ public final class Library {
     @discardableResult
     public func scan() -> [LibraryBook] {
         var found: [String: LibraryBook] = [:]
+        var seen = Set<String>()
+        var cacheChanged = false
         let keys: [URLResourceKey] = [.contentModificationDateKey, .creationDateKey, .isDirectoryKey]
 
         func visit(_ folder: URL, _ source: LibraryBook.Source) {
@@ -86,6 +119,7 @@ public final class Library {
                 let stamp = values?.contentModificationDate ?? .distantPast
                 let fallbackTitle = url.deletingPathExtension().lastPathComponent
 
+                seen.insert(url.path)
                 var meta: EPUBMetadata
                 lock.lock()
                 let cached = metaCache[url.path]
@@ -103,6 +137,7 @@ public final class Library {
                     metaCache[url.path] = (stamp, meta)
                     containers[id] = nil
                     lock.unlock()
+                    cacheChanged = true
                 }
                 if meta.title.isEmpty { meta.title = fallbackTitle }
                 found[id] = LibraryBook(id: id, url: url, source: source, fileName: fallbackTitle,
@@ -116,7 +151,11 @@ public final class Library {
         lock.lock()
         books = found
         containers = containers.filter { found[$0.key] != nil }
+        let before = metaCache.count
+        metaCache = metaCache.filter { seen.contains($0.key) }
+        if metaCache.count != before { cacheChanged = true }
         lock.unlock()
+        if cacheChanged { saveMetaCache() }
         return Array(found.values)
     }
 

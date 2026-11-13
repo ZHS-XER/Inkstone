@@ -15,7 +15,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Brid
     // MARK: Launch
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let library = Library()
+        // `INKSTONE_HOME=<folder>` runs against a self-contained library in that
+        // folder (no Apple Books, nothing shared with the real one) — for demos
+        // and for testing without touching the user's reading state.
+        let library: Library
+        if let home = ProcessInfo.processInfo.environment["INKSTONE_HOME"] {
+            let root = URL(fileURLWithPath: home, isDirectory: true)
+            library = Library(folders: .init(support: root,
+                                             books: root.appendingPathComponent("Books", isDirectory: true),
+                                             caches: root.appendingPathComponent("Caches", isDirectory: true),
+                                             external: []))
+        } else {
+            library = Library()
+        }
         bridge = Bridge(library: library, webRoot: AppDelegate.locateWebRoot())
         bridge.host = self
 
@@ -49,7 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Brid
         window.toolbar = toolbar
         window.toolbarStyle = .unified
         window.center()
-        window.setFrameAutosaveName("InkstoneMain")
+        if ProcessInfo.processInfo.environment["INKSTONE_HOME"] == nil {
+            window.setFrameAutosaveName("InkstoneMain")
+        }
         setAppearance(dark: NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua)
 
         NSApp.mainMenu = MainMenu.build(target: self)
@@ -197,16 +211,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Brid
 }
 
 /// The window has no visible title bar: the web UI draws its own top bar under
-/// a transparent one. AppKit's title bar would swallow clicks there, so mouse
-/// events in that strip are handed straight to the web view (which asks for a
-/// window drag itself when the click lands on empty bar).
+/// a transparent one and asks for a window drag when a click lands on an empty
+/// part of it. Normally AppKit delivers clicks in that strip to the web view by
+/// itself; should a title-bar view ever claim one, it is handed to the web view
+/// here instead so the page's buttons keep working.
 final class ReaderWindow: NSWindow {
     weak var webView: WKWebView?
     private(set) var lastMouseDown: NSEvent?
     private var routing = false
 
-    private func inTitleStrip(_ event: NSEvent) -> Bool {
-        guard let content = contentView, !styleMask.contains(.fullScreen) else { return false }
+    private func titleBarWouldSwallow(_ event: NSEvent) -> Bool {
+        guard let webView, let content = contentView, let frameView = content.superview,
+              !styleMask.contains(.fullScreen) else { return false }
         let p = event.locationInWindow
         let stripHeight = content.bounds.height - contentLayoutRect.height
         guard stripHeight > 0, p.y >= content.bounds.height - stripHeight else { return false }
@@ -215,15 +231,17 @@ final class ReaderWindow: NSWindow {
             let frame = host.convert(zoom.frame, to: nil)
             if p.x <= frame.maxX + 8 { return false }
         }
-        return true
+        guard let hit = frameView.hitTest(frameView.convert(p, from: nil)) else { return true }
+        return !(hit === webView || hit.isDescendant(of: webView))
     }
 
     override func sendEvent(_ event: NSEvent) {
         switch event.type {
         case .leftMouseDown:
             lastMouseDown = event
-            if let webView, inTitleStrip(event) {
+            if let webView, titleBarWouldSwallow(event) {
                 routing = true
+                if !isKeyWindow { makeKeyAndOrderFront(nil) }
                 makeFirstResponder(webView)
                 webView.mouseDown(with: event)
                 return
@@ -236,8 +254,6 @@ final class ReaderWindow: NSWindow {
                 webView.mouseUp(with: event)
                 return
             }
-        case .rightMouseDown:
-            if let webView, inTitleStrip(event) { webView.rightMouseDown(with: event); return }
         default:
             break
         }

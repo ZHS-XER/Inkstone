@@ -5,10 +5,20 @@
 const handler = globalThis.webkit?.messageHandlers?.inkstone
 
 export const isNative = !!handler
-export const platform = globalThis.__inkstonePlatform ?? 'web' // 'mac' | 'ios' | 'web'
+// 'mac', 'ios iphone', 'ios ipad' or 'web'; each word becomes a class on <html>
+export const platform = globalThis.__inkstonePlatform ?? 'web'
+export const isMac = platform === 'mac'
+export const isIOS = platform.startsWith('ios')
 
 export const call = async (method, params = {}) => {
-    if (handler) return handler.postMessage({ method, params })
+    if (handler) {
+        // WebKit preserves object identity when it converts the reply, and
+        // Foundation's empty arrays are one shared singleton — so two empty
+        // lists would arrive as the *same* JS array. Round-trip through JSON
+        // to get plain, unshared data.
+        const reply = await handler.postMessage({ method, params })
+        return reply == null ? reply : JSON.parse(JSON.stringify(reply))
+    }
     const res = await fetch('/api/call', {
         method: 'POST',
         body: JSON.stringify({ method, params }),

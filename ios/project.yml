@@ -1,0 +1,69 @@
+# XcodeGen spec for the iPhone / iPad app.
+#
+#   brew install xcodegen
+#   cd ios && xcodegen        → ios/Inkstone.xcodeproj
+#
+# The app is a thin shell: InkstoneCore (the Swift package at the repo root)
+# does the real work and ../web is the whole interface.
+name: Inkstone
+options:
+  bundleIdPrefix: io.github.zhs-xer
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+packages:
+  InkstonePackage:
+    path: ..
+targets:
+  Inkstone:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+      - path: ../web
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: InkstonePackage
+        product: InkstoneCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.zhs-xer.inkstone
+        PRODUCT_NAME: Inkstone
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: NO
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Inkstone
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # Books live in the app's Documents folder, visible in the Files app.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: false
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: EPUB
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - org.idpf.epub-container
+        ITSAppUsesNonExemptEncryption: false
