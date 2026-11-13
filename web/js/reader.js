@@ -211,11 +211,10 @@ export const mountReader = (root, id, { onClose }) => {
     const prev = () => view?.prev()
     const left = () => (vertical || book?.dir === 'rtl') ? next() : prev()
     const right = () => (vertical || book?.dir === 'rtl') ? prev() : next()
-    let jumped = false, chipTimer
+    let chipTimer
     const jump = async target => {
         if (!view) return
         hideSel()
-        jumped = true
         await (typeof target === 'object' && 'fraction' in target
             ? view.goToFraction(target.fraction) : view.goTo(target))
         if (view.history.canGoBack) {
@@ -676,6 +675,8 @@ export const mountReader = (root, id, { onClose }) => {
         const { FootnoteHandler } = await import(FOLIATE + 'footnotes.js')
         footnotes = new FootnoteHandler()
         footnotes.addEventListener('before-render', e => {
+            // the note's own little view must be in the document to load at all
+            noteCard.replaceChildren(e.detail.view)
             const r = e.detail.view.renderer
             r.setAttribute('flow', 'scrolled')
             r.setAttribute('margin', '14px')
@@ -685,10 +686,7 @@ export const mountReader = (root, id, { onClose }) => {
                 `font-size: ${Math.max(13, settings.fontSize - 3)}px !important`)
                 .replace(/writing-mode:[^;]+;/g, ''))
         })
-        footnotes.addEventListener('render', e => {
-            noteCard.replaceChildren(e.detail.view)
-            noteCard.classList.add('show')
-        })
+        footnotes.addEventListener('render', () => noteCard.classList.add('show'))
     }
     imageView.addEventListener('click', () => imageView.classList.remove('show'))
 
@@ -833,9 +831,6 @@ export const mountReader = (root, id, { onClose }) => {
             : time?.total > 0.5 ? `全书约剩 ${duration(time.total)}` : ''
         refreshBookmarkState()
         if (el.classList.contains('drawer')) renderTOC(false)
-        if (!jumped) chip.classList.remove('show')
-        jumped = false
-        if (searchLinger > 0 && detail.reason === 'page' && --searchLinger === 0) view.clearSearch()
 
         const atEnd = fraction >= 0.995 || (section && section.current >= section.total - 1 && fraction > 0.97)
         state.progress = { cfi: detail.cfi, fraction, updated: Date.now() }
@@ -857,6 +852,15 @@ export const mountReader = (root, id, { onClose }) => {
         el.classList.toggle('fxl', fxl)
         view.addEventListener('load', e => onDocLoad(e.detail))
         view.addEventListener('relocate', e => onRelocate(e.detail))
+        // The renderer says *why* the page moved. Once the reader turns pages
+        // on their own, the "go back" offer and search outlines have done
+        // their job.
+        view.renderer.addEventListener('relocate', e => {
+            const { reason } = e.detail
+            if (reason !== 'page' && reason !== 'scroll' && reason !== 'snap') return
+            chip.classList.remove('show')
+            if (searchLinger > 0 && --searchLinger === 0) view.clearSearch()
+        })
         view.addEventListener('create-overlay', e => {
             for (const a of state.annotations) if (a.index === e.detail.index) drawAnnotation(a)
         })
@@ -875,8 +879,12 @@ export const mountReader = (root, id, { onClose }) => {
         })
         view.addEventListener('link', e => {
             suppressClick = performance.now()
-            if (footnotes?.handle(book, e)) return
-            jumped = true
+            const note = footnotes?.handle(book, e)
+            if (note) {
+                // if the note can't be shown in place, just follow the link
+                note.catch(err => { console.warn(err); closeNoteCard(); jump(e.detail.href) })
+                return
+            }
             setTimeout(() => {
                 if (!view.history.canGoBack) return
                 chip.classList.add('show')
