@@ -2,6 +2,7 @@
 // into each section, and a light per-document pass that marks paragraphs the
 // stylesheet should leave alone.
 import { fontStack, settings, themeColors } from './settings.js'
+import { fontFaceCSS } from './bridge.js'
 
 export const HIGHLIGHTS = {
     yellow: '#EFC34A',
@@ -20,6 +21,7 @@ export const readerCSS = () => {
     const tuned = 'html:not([data-ink-measuring])'
     return `
 @namespace epub "http://www.idpf.org/2007/ops";
+${fontFaceCSS}
 html {
     color-scheme: ${dark ? 'dark' : 'light'};
     color: ${fg} !important;

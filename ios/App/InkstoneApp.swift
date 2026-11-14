@@ -32,6 +32,7 @@ final class AppModel: NSObject, ObservableObject, BridgeHost, UIDocumentPickerDe
     let bridge: Bridge
     let webView: WKWebView
     private var pickContinuation: CheckedContinuation<[URL], Never>?
+    private var debug: DebugChannel?
     private var loaded = false
     private var pendingOpen: [URL] = []
 
@@ -48,6 +49,13 @@ final class AppModel: NSObject, ObservableObject, BridgeHost, UIDocumentPickerDe
 
         let webRoot = Bundle.main.resourceURL!.appendingPathComponent("web", isDirectory: true)
         bridge = Bridge(library: library, webRoot: webRoot)
+        // iOS has no Chinese serif or kai face of its own; see scripts/fetch-ios-fonts.sh
+        let fontsRoot = Bundle.main.resourceURL!.appendingPathComponent("Fonts", isDirectory: true)
+        bridge.fontsRoot = fontsRoot
+        bridge.bundledFonts = [
+            Bridge.BundledFont(family: "Noto Serif SC", file: "NotoSerifSC.ttf", weight: "200 900"),
+            Bridge.BundledFont(family: "LXGW WenKai", file: "LXGWWenKai-Regular.ttf"),
+        ].filter { fm.fileExists(atPath: fontsRoot.appendingPathComponent($0.file).path) }
 
         let platform = UIDevice.current.userInterfaceIdiom == .pad ? "ipad" : "iphone"
         let configuration = bridge.makeConfiguration(platform: "ios \(platform)")
@@ -66,6 +74,7 @@ final class AppModel: NSObject, ObservableObject, BridgeHost, UIDocumentPickerDe
         super.init()
         bridge.host = self
         bridge.webView = webView
+        debug = DebugChannel.fromEnvironment(webView: webView)
         webView.load(URLRequest(url: Bridge.startURL))
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             guard let self else { return }

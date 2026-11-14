@@ -793,8 +793,12 @@ export const mountReader = (root, id, { onClose }) => {
         }, 160)
         doc.addEventListener('pointerup', checkSelection)
         doc.addEventListener('keyup', e => { if (e.shiftKey) checkSelection() })
+        // Touch selection (long-press, dragging the handles) raises no pointer
+        // events of its own, so there the selection itself is what we watch.
+        const checkTouchSelection = debounce(() => checkSelection(), 350)
         doc.addEventListener('selectionchange', () => {
             if (doc.getSelection()?.isCollapsed && sel && !sel.annotation) hideSel()
+            else if (noHover.matches) checkTouchSelection()
         })
 
         doc.addEventListener('dblclick', e => {

@@ -33,6 +33,25 @@ public final class Bridge: NSObject, WKURLSchemeHandler, WKScriptMessageHandlerW
     public weak var host: BridgeHost?
     public weak var webView: WKWebView?
 
+    /// A typeface shipped inside the app. Web content can't see fonts an app
+    /// registers for itself, so these are served to the page as web fonts.
+    public struct BundledFont {
+        public let family: String
+        public let file: String
+        /// CSS `font-weight` descriptor: a single weight, or a range for variable fonts.
+        public let weight: String
+
+        public init(family: String, file: String, weight: String = "400") {
+            self.family = family
+            self.file = file
+            self.weight = weight
+        }
+    }
+
+    /// Folder the bundled fonts live in, and which of them are present.
+    public var fontsRoot: URL?
+    public var bundledFonts: [BundledFont] = []
+
     private let queue = DispatchQueue(label: "inkstone.bridge", qos: .userInitiated, attributes: .concurrent)
     private var liveTasks = Set<ObjectIdentifier>()   // main thread only
 
@@ -47,8 +66,11 @@ public final class Bridge: NSObject, WKURLSchemeHandler, WKScriptMessageHandlerW
         let configuration = WKWebViewConfiguration()
         configuration.setURLSchemeHandler(self, forURLScheme: Bridge.scheme)
         configuration.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "inkstone")
+        let fonts = bundledFonts.map { ["family": $0.family, "file": $0.file, "weight": $0.weight] }
+        let fontsJSON = (try? JSONSerialization.data(withJSONObject: fonts))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
         configuration.userContentController.addUserScript(WKUserScript(
-            source: "window.__inkstonePlatform = '\(platform)';",
+            source: "window.__inkstonePlatform = '\(platform)'; window.__inkstoneFonts = \(fontsJSON);",
             injectionTime: .atDocumentStart, forMainFrameOnly: true))
         return configuration
     }
@@ -67,6 +89,8 @@ public final class Bridge: NSObject, WKURLSchemeHandler, WKScriptMessageHandlerW
         var status = 200
         var mime = "application/octet-stream"
         var data = Data()
+        /// Never changes for the life of the app, so the web view may keep it.
+        var immutable = false
 
         static let notFound = Response(status: 404, mime: "text/plain", data: Data("not found".utf8))
     }
@@ -93,6 +117,13 @@ public final class Bridge: NSObject, WKURLSchemeHandler, WKScriptMessageHandlerW
             let path = parts.dropFirst(2).joined(separator: "/")
             guard let data = try? library.container(for: parts[1])?.data(for: path) else { return .notFound }
             return Response(mime: MIME.type(forPath: path), data: data)
+        }
+
+        if parts.first == "fonts", parts.count == 2, let fontsRoot,
+           bundledFonts.contains(where: { $0.file == parts[1] }) {
+            let file = fontsRoot.appendingPathComponent(parts[1])
+            guard let data = try? Data(contentsOf: file, options: .mappedIfSafe) else { return .notFound }
+            return Response(mime: MIME.type(forPath: parts[1]), data: data, immutable: true)
         }
 
         // the web UI itself
@@ -124,7 +155,7 @@ public final class Bridge: NSObject, WKURLSchemeHandler, WKScriptMessageHandlerW
                 let headers = [
                     "Content-Type": response.mime,
                     "Content-Length": String(response.data.count),
-                    "Cache-Control": "no-store",
+                    "Cache-Control": response.immutable ? "public, max-age=31536000, immutable" : "no-store",
                     "Access-Control-Allow-Origin": "*",
                 ]
                 guard let http = HTTPURLResponse(url: url, statusCode: response.status,

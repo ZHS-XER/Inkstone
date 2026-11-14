@@ -10,6 +10,17 @@ export const platform = globalThis.__inkstonePlatform ?? 'web'
 export const isMac = platform === 'mac'
 export const isIOS = platform.startsWith('ios')
 
+// Typefaces the host ships with the app (iOS, which has no Chinese serif of
+// its own). Pages inside the web view can't see an app's own fonts, so they
+// are declared as web fonts — here and inside every book document.
+const bundledFonts = globalThis.__inkstoneFonts ?? []
+export const fontFaceCSS = bundledFonts.map(f => `@font-face {
+    font-family: "${f.family}";
+    src: url("${new URL('/fonts/' + encodeURIComponent(f.file), location.href).href}");
+    font-weight: ${f.weight};
+    font-display: block;
+}`).join('\n')
+
 export const call = async (method, params = {}) => {
     if (handler) {
         // WebKit preserves object identity when it converts the reply, and

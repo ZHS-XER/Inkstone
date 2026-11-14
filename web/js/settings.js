@@ -1,4 +1,4 @@
-import { call } from './bridge.js'
+import { call, isIOS } from './bridge.js'
 import { debounce } from './util.js'
 
 export const THEMES = [
@@ -12,13 +12,14 @@ export const THEMES = [
 
 // Latin faces come first so that Western text never falls back to the CJK
 // font's (usually clumsy) Latin glyphs.
+// (iOS has no fangsong face, and its song and kai are the two bundled open fonts.)
 export const FONTS = [
     { id: 'book', name: '原书', stack: null, sample: 'inherit' },
-    { id: 'song', name: '宋体', stack: '"Iowan Old Style", "Palatino", Georgia, "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", STSong, serif' },
+    { id: 'song', name: '宋体', stack: '"Iowan Old Style", "Palatino", Georgia, "Songti SC", "Noto Serif SC", "Source Han Serif SC", "Noto Serif CJK SC", STSong, serif' },
     { id: 'kai', name: '楷体', stack: '"Iowan Old Style", "Palatino", Georgia, "LXGW WenKai", "Kaiti SC", STKaiti, KaiTi, serif' },
     { id: 'fang', name: '仿宋', stack: '"Iowan Old Style", "Palatino", Georgia, STFangsong, "FangSong SC", FangSong, serif' },
     { id: 'hei', name: '黑体', stack: '"Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif' },
-]
+].filter(f => !(isIOS && f.id === 'fang'))
 
 // the font stack for the current settings; null means "leave the book alone"
 export const fontStack = (s = settings) => {

@@ -1,7 +1,7 @@
 /* Inkstone — warm paper, quiet chrome, serif where it matters. */
 
 :root {
-    --serif: "Iowan Old Style", "Palatino", Georgia, "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", STSong, serif;
+    --serif: "Iowan Old Style", "Palatino", Georgia, "Songti SC", "Noto Serif SC", "Source Han Serif SC", "Noto Serif CJK SC", STSong, serif;
     --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
     --radius: 10px;
     --ease: cubic-bezier(.2, .7, .2, 1);

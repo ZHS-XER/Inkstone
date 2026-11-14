@@ -9,3 +9,4 @@ DerivedData/
 .swiftpm/
 ios/*.xcodeproj/
 ios/App/Info.plist
+ios/Fonts/

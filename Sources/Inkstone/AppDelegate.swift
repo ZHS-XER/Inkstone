@@ -71,8 +71,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Brid
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
-        if let folder = ProcessInfo.processInfo.environment["INKSTONE_DEBUG"] {
-            debug = DebugChannel(folder: URL(fileURLWithPath: folder), webView: webView, window: window)
+        debug = DebugChannel.fromEnvironment(webView: webView) { [weak window] in
+            window?.debugInfo() ?? [:]
         }
 
         ready = true

@@ -63,14 +63,25 @@ scripts/build-app.sh --install     # 构建并复制到 /Applications
 
 ## iPhone / iPad
 
+<p>
+<img src="docs/iphone-library.png" width="24%" alt="iPhone 书库">
+<img src="docs/iphone-reading.png" width="24%" alt="iPhone 阅读">
+<img src="docs/ipad-reading.png" width="40%" alt="iPad 阅读">
+</p>
+
 iOS 版与 Mac 版共用同一套界面和阅读引擎，只多一层很薄的外壳（`ios/`）。需要 Xcode：
 
 ```bash
 brew install xcodegen
+scripts/fetch-ios-fonts.sh         # 下载宋体与楷体（约 50 MB，见下）
 cd ios && xcodegen && open Inkstone.xcodeproj
 ```
 
-在 Xcode 里选好自己的开发者团队后运行到设备上即可。书通过「文件」App 或其他 App 的「用 Inkstone 打开」导入。
+在 Xcode 里给 `InkstoneiOS` 选好自己的开发者团队，运行到设备上即可。
+
+- **书从哪来**：iOS 上读不到 Apple「图书」的书库（系统限制）。通过右上角的 `+`、「文件」App 里的 Inkstone 文件夹，或其他 App 的「用 Inkstone 打开」导入。
+- **字体**：iOS 自带的中文字体只有苹方，没有宋体和楷体，所以 App 内置了[思源宋体（Noto Serif SC）](https://github.com/google/fonts/tree/main/ofl/notoserifsc)和[霞鹜文楷](https://github.com/lxgw/LxgwWenKai)，均为 SIL OFL 1.1 许可。字体文件较大，不放在仓库里，由上面的脚本下载；不下载也能编译，只是中文会显示为苹方。
+- **同步**：Mac 与 iPhone 之间的阅读进度和笔记目前不同步。
 
 ## 结构
 
@@ -79,7 +90,7 @@ web/                   全部界面：书库、阅读器、样式（原生 ES mo
   vendor/foliate-js/   EPUB 解析、分页、CFI、搜索（MIT）
 Sources/InkstoneCore/  Swift：ZIP 读取、EPUB 元数据、书库、与界面之间的桥
 Sources/Inkstone/      macOS 外壳（AppKit + WKWebView）
-ios/                   iPhone / iPad 外壳（SwiftUI + WKWebView）
+ios/                   iPhone / iPad 外壳（SwiftUI + WKWebView），工程由 XcodeGen 生成
 dev/server.mjs         开发服务器：在普通浏览器里调试界面
 ```
 
@@ -95,7 +106,9 @@ swift build && swift test    # 原生层（测试需要 Xcode 自带的 XCTest�
 scripts/build-app.sh         # 打包 build/Inkstone.app
 ```
 
-调试原生 App 时可以设置 `INKSTONE_WEB=$PWD/web` 让它直接读源码目录里的界面，改完按 `⌘R` 重新载入。
+调试原生 App 时可以设置 `INKSTONE_WEB=$PWD/web` 让它直接读源码目录里的界面，改完按 `⌘R` 重新载入；`INKSTONE_HOME=<目录>` 让它使用一个独立的书库，不碰真实的阅读数据。
+
+设置 `INKSTONE_DEBUG=<目录>` 后可以用 `scripts/debug-eval.sh '<js>'` 在运行中的 App 里执行脚本并取回结果和截图——Mac 和 iOS 模拟器都适用（模拟器用 `SIMCTL_CHILD_INKSTONE_DEBUG`）。
 
 ## 致谢
 

@@ -1,10 +1,11 @@
 import { initSettings } from './settings.js'
 import { mountLibrary } from './library.js'
 import { mountReader } from './reader.js'
-import { call, onHost, platform } from './bridge.js'
+import { call, onHost, platform, fontFaceCSS } from './bridge.js'
 
 const root = document.getElementById('app')
 document.documentElement.classList.add(...platform.split(' '))
+if (fontFaceCSS) document.head.append(Object.assign(document.createElement('style'), { textContent: fontFaceCSS }))
 
 let unmount = null
 
