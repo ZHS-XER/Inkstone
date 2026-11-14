@@ -196,7 +196,9 @@ export const mountReader = (root, id, { onClose }) => {
         r.setAttribute('max-inline-size', settings.pageWidth + 'px')
         r.setAttribute('max-column-count', two && !vertical ? 2 : 1)
         r.setAttribute('gap', w < 640 ? '7%' : '6%')
-        r.setAttribute('margin', '56px')
+        const margin = w < 640 ? 44 : 56
+        r.setAttribute('margin', margin + 'px')
+        el.style.setProperty('--page-margin', margin + 'px')
         r.toggleAttribute('animated', !!settings.animated)
         view.toggleAttribute('autohide-cursor', true)
     }
@@ -415,6 +417,12 @@ export const mountReader = (root, id, { onClose }) => {
         const x = clamp(cx - width / 2, 8, host.width - width - 8)
         let y = top - height - 10
         if (y < 8) y = Math.min(bottom + 10, host.height - height - 8)
+        // On touch screens the system's own menu sits above the selection,
+        // so ours goes below, clear of the selection handles.
+        if (noHover.matches) {
+            y = bottom + 28
+            if (y + height > host.height - 8) y = Math.max(8, top - height - 56)
+        }
         Object.assign(selPop.style, { left: x + 'px', top: y + 'px' })
     }
     const showSelFor = (range, index, annotation = null) => {
